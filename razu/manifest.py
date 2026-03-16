@@ -355,7 +355,7 @@ if __name__ == "__main__":
                     result = {"timestamp": timestamp, "status": "ok", "detail": f"{len(manifest.entries)} files validated"}
                 print(json.dumps(result, ensure_ascii=False))
             except Exception as e:
-                result = {"timestamp": timestamp, "status": "fail", "details": f"{type(e).__name__}: {e}"}
+                result = {"timestamp": timestamp, "status": "fail", "detail": f"{type(e).__name__}: {e}"}
                 print(json.dumps(result, ensure_ascii=False))
                 sys.exit(1)
     except Exception as e:
