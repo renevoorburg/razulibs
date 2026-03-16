@@ -350,9 +350,9 @@ if __name__ == "__main__":
                     for error_type, files in errors.items():
                         if files:
                             error_parts.append(f"{error_type}: {', '.join(files)}")
-                    result = {"timestamp": timestamp, "status": "fail", "details": "; ".join(error_parts)}
+                    result = {"timestamp": timestamp, "status": "fail", "detail": "; ".join(error_parts)}
                 else:
-                    result = {"timestamp": timestamp, "status": "ok", "details": f"{len(manifest.entries)} files validated"}
+                    result = {"timestamp": timestamp, "status": "ok", "detail": f"{len(manifest.entries)} files validated"}
                 print(json.dumps(result, ensure_ascii=False))
             except Exception as e:
                 result = {"timestamp": timestamp, "status": "fail", "details": f"{type(e).__name__}: {e}"}
