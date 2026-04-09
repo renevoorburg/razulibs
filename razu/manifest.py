@@ -182,7 +182,7 @@ class Manifest:
             }
         self.is_modified = False
 
-    def validate(self, ignore_files: list = None) -> dict:
+    def validate(self, ignore_files: list = None, show_progress: bool = False) -> dict:
         """ Verify 1 to 1 relationship between manifest entries and files in the directory. 
 
         Args:
@@ -198,13 +198,14 @@ class Manifest:
             'extra_files': []
         }
 
-        ignore_files = ignore_files or []
+        ignore_files = list(ignore_files) if ignore_files else []
         ignore_files.append(Path(self.manifest_file_path).name)
 
         # Check manifest entries against filesystem
         counter = 1
         for filename in self.entries:
-            print(counter, end='\r')
+            if show_progress:
+                print(counter, end='\r', file=sys.stderr)
             counter += 1
             file_path = self.base_directory / filename
             if not file_path.exists():
@@ -304,6 +305,8 @@ if __name__ == "__main__":
     validate_parser.add_argument("manifest_filename", help="Manifest file to validate against")
     validate_parser.add_argument("--ignore", "-i", nargs="+", dest="ignore_files",
                                 help="Files to ignore during validation")
+    validate_parser.add_argument("--progress", "-p", action="store_true",
+                                help="Show progress counter during validation")
     
     # Parse arguments
     # If no subcommand is given, interpret the invocation as 'validate'
@@ -337,16 +340,24 @@ if __name__ == "__main__":
             manifest_relpath = str(manifest_path.relative_to(base_directory))
 
             manifest = Manifest.load_existing(str(base_directory), manifest_filename=manifest_relpath)
-            errors = manifest.validate(ignore_files=args.ignore_files)
-            if any(errors.values()):
-                print(f"Validation failed for {manifest.manifest_file_path}:")
-                for error_type, files in errors.items():
-                    if files:
-                        print(f"{error_type}: {files}")
-            else:
-                print(f"Manifest {manifest.manifest_file_path} and its contents validated successfully.")
-                if args.ignore_files:
-                    print(f"Note: The following files were ignored during validation: {', '.join(args.ignore_files)}")
+            ignore_files = list(args.ignore_files) if args.ignore_files else []
+            timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+            try:
+                errors = manifest.validate(ignore_files=ignore_files, show_progress=args.progress)
+                has_errors = any(errors.values())
+                if has_errors:
+                    error_parts = []
+                    for error_type, files in errors.items():
+                        if files:
+                            error_parts.append(f"{error_type}: {', '.join(files)}")
+                    result = {"timestamp": timestamp, "status": "fail", "detail": "; ".join(error_parts)}
+                else:
+                    result = {"timestamp": timestamp, "status": "ok", "detail": f"{len(manifest.entries)} files validated"}
+                print(json.dumps(result, ensure_ascii=False))
+            except Exception as e:
+                result = {"timestamp": timestamp, "status": "fail", "detail": f"{type(e).__name__}: {e}"}
+                print(json.dumps(result, ensure_ascii=False))
+                sys.exit(1)
     except Exception as e:
         print(f"Error: {e}")
         sys.exit(1)
