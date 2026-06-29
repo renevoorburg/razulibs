@@ -1,4 +1,3 @@
-import sys
 from functools import lru_cache
 from SPARQLWrapper import SPARQLWrapper, JSON
 from rdflib import URIRef
@@ -15,6 +14,7 @@ class Concept:
         """ Initializes the Concept with its associated URI and determines the SPARQL endpoint. """
         self.uri = uri
         self.sparql_endpoint = SparqlEndpointManager.get_endpoint_by_uri(uri)
+        self.graph_uri = self.get_value(URIRef("http://www.w3.org/2004/02/skos/core#inScheme"))
 
     @lru_cache(maxsize=128)
     def get_value(self, predicate: URIRef) -> str:
@@ -37,11 +37,59 @@ class Concept:
             bindings = response.get('results', {}).get('bindings', [])
             if bindings and 'value' in bindings[0]:
                 return bindings[0]['value']['value']
-            raise ValueError(f"No value found for {self.uri} and predicate: {predicate}")     
+            raise ValueError(f"No value found for {self.uri} and predicate: {predicate}")
         except Exception as e:
             print(f"Error querying the SPARQL endpoint: {e}")
-            sys.exit(1)
-    
+            return None
+
+    def get_values(self, predicate: URIRef) -> list:
+        """ Returns all values for a given predicate as a list. """
+        query = f"""
+        PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+        PREFIX schema: <http://schema.org/>
+
+        SELECT ?value WHERE {{
+            <{self.uri}> <{predicate}> ?value .
+        }}
+        """
+        sparql_service = SPARQLWrapper(self.sparql_endpoint)
+        sparql_service.setQuery(query)
+        sparql_service.setReturnFormat(JSON)
+
+        try:
+            response = sparql_service.query().convert()
+            bindings = response.get('results', {}).get('bindings', [])
+            return [b['value']['value'] for b in bindings if 'value' in b]
+        except Exception as e:
+            print(f"Error querying the SPARQL endpoint: {e}")
+            return []
+
+    def get_all_values(self) -> dict:
+        """ Returns all predicate-value pairs for this concept as a dict. """
+        query = f"""
+        PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+        PREFIX schema: <http://schema.org/>
+
+        SELECT ?p ?o WHERE {{
+            <{self.uri}> ?p ?o .
+        }}
+        """
+        sparql_service = SPARQLWrapper(self.sparql_endpoint)
+        sparql_service.setQuery(query)
+        sparql_service.setReturnFormat(JSON)
+
+        try:
+            response = sparql_service.query().convert()
+            bindings = response.get('results', {}).get('bindings', [])
+            if bindings:
+                return {binding['p']['value']: binding['o']['value'] for binding in bindings}
+            raise ValueError(f"No values found for {self.uri}")
+        except Exception as e:
+            print(f"Error querying the SPARQL endpoint: {e}")
+            return {}
+
     def get_uri(self) -> URIRef:
         """ Returns the URI of the concept. """
         return self.uri
@@ -58,9 +106,16 @@ class ConceptResolver:
         PREFIX schema: <http://schema.org/>
     """
 
-    def __init__(self, vocabulary: str):
-        """ Initialize with vocabulary name. """
-        self.vocabulary = vocabulary
+    def __init__(self, vocabulary: str | URIRef):
+        """ Initialize with vocabulary name or URI. """
+        if isinstance(vocabulary, URIRef):
+            self.endpoint = SparqlEndpointManager.get_endpoint_by_uri(vocabulary)
+            self.vocabulary = None
+        elif isinstance(vocabulary, str):
+            self.endpoint = SparqlEndpointManager.get_endpoint_by_vocabulary(vocabulary)
+            self.vocabulary = vocabulary
+        else:
+            raise ValueError(f"Invalid vocabulary type: {type(vocabulary)}")
 
     @lru_cache(maxsize=256)
     def get_concept(self, term: str) -> Concept:
@@ -74,6 +129,13 @@ class ConceptResolver:
                 uri = URIRef(bindings[0]['uri']['value'])
                 return Concept(uri)
         raise ValueError(f"No Concept found for term: {term}")
+
+    def get_concept_obj_from_term(self, term: str) -> Concept:
+        """ Retrieves a Concept object for the given term, returns None if not found. """
+        try:
+            return self.get_concept(term)
+        except ValueError:
+            return None
 
     def get_concept_value(self, term: str, predicate: URIRef) -> str:
         """ Get a concept's predicate value. """
@@ -101,9 +163,7 @@ class ConceptResolver:
 
     def _execute_query(self, query: str) -> dict:
         """ Executes a SPARQL query. """
-        sparql_service = SPARQLWrapper(
-            SparqlEndpointManager.get_endpoint_by_vocabulary(self.vocabulary)
-        )
+        sparql_service = SPARQLWrapper(self.endpoint)
         sparql_service.setQuery(query)
         sparql_service.setReturnFormat(JSON)
 
@@ -111,4 +171,4 @@ class ConceptResolver:
             return sparql_service.query().convert()
         except Exception as e:
             print(f"Error querying the SPARQL endpoint: {e}")
-            sys.exit(1)
+            return None

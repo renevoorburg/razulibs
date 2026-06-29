@@ -22,6 +22,9 @@ Make sure the settings file config.yaml is available, for example in the present
 
 def main():
     
+    # Initialize global configuration
+    context = Config.initialize()
+
     # Initialize RDF concept resolvers, used to convert labels, notations or identifiers
     # in a given vocabulary to their respective URIs.
     actoren = ConceptResolver("actor")
@@ -34,9 +37,6 @@ def main():
     locaties = ConceptResolver("locatie")
     soorten = ConceptResolver("soort")
     waarderingen = ConceptResolver("waardering")
-
-    # Initialize global configuration
-    context = Config.initialize()
 
     # Initialize the context with settings for this specific run
     context.add_properties(
@@ -207,7 +207,8 @@ def main():
         original_filename = extra.maak_bestandsnaam(row['Doos-nummer'], row['Inventarisnummer'])
         droid_row = droid_df.loc[original_filename] 
 
-        bestand = StructuredMetaResource(rdf_type=LDTO.Bestand)
+        bestand = StructuredMetaResource()
+        bestand.set_type(LDTO.Bestand)
         bestand.add_properties({
             LDTO.naam: f"{row['Titel']} {row['Doos-nummer']}:{row['Volgnummer']}",
             PREMIS.originalName: original_filename,
