@@ -50,11 +50,11 @@ class MetaResource(RDFResource):
     def filestore_key(self) -> str:
         return self._id_factory.make_s3_key_from_id(self.id)
  
-    def save(self) -> bool:
+    def save(self, format='json-ld') -> bool:
         if self.is_modified:
             try:
                 with open(self.local_file_path, 'w', encoding='utf-8') as file:
-                    file.write(self.graph.serialize(format='json-ld'))
+                    file.write(self.graph.serialize(format=format))
                 self.is_modified = False
                 return True
             except IOError as e:
