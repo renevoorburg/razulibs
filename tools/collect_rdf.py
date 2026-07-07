@@ -135,11 +135,15 @@ def collect_rdf(manifest_path_arg, outfile=None):
     g.serialize(destination=output_path, format='turtle')
     print(f"Merged RDF saved as: {output_path}")
 
-if __name__ == "__main__":
+def main(argv=None):
     parser = argparse.ArgumentParser(description="Collect RDF data from a manifest to a single file.")
     parser.add_argument("manifest", help="Path to manifest file or directory containing manifest.json")
     parser.add_argument("outfile", nargs="?", help="Optional output file (default: out.ttl in current directory)")
-    
-    args = parser.parse_args()
-    
+
+    args = parser.parse_args(argv)
+
     collect_rdf(args.manifest, args.outfile)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

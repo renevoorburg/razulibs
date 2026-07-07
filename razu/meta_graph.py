@@ -11,6 +11,11 @@ PROV = Namespace("http://www.w3.org/ns/prov#")
 EROR = Namespace("http://id.loc.gov/vocabulary/preservation/eventRelatedObjectRole/")
 ERAR = Namespace("http://id.loc.gov/vocabulary/preservation/eventRelatedAgentRole/")
 EO = Namespace("http://id.loc.gov/vocabulary/preservation/eventOutcome/")
+BAG = Namespace("http://bag.basisregistraties.overheid.nl/def/bag#")
+PICO = Namespace("https://personsincontext.org/model#")
+RAZU = Namespace("https://data.razu.nl/id/object/")
+PNV = Namespace("https://w3id.org/pnv#")
+PN = Namespace("https://data.razu.nl/id/persoonsnaam/")
 
 
 class MetaGraph(Graph):
@@ -27,4 +32,9 @@ class MetaGraph(Graph):
         self.bind("erar", ERAR)
         self.bind("eo", EO)
         self.bind("owl", OWL)
-        
+        self.bind("pico", PICO)
+        self.bind("razu", RAZU)
+        self.bind("bag", BAG)
+        self.bind("xsd", XSD)
+        self.bind("pnv", PNV)
+        self.bind("pn", PN)

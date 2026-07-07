@@ -17,13 +17,21 @@ class MetaResource(RDFResource):
     Provides load(), save() and identifier logic.
     """
     _counter = Incrementer(0)
-    _context = Config.get_instance()
-    _id_factory = Identifiers(_context)
+    _context = None
+    _id_factory = None
 
-    def __init__(self, id: str | None = None):
+    @classmethod
+    def _get_context(cls):
+        if cls._context is None:
+            cls._context = Config.get_instance()
+            cls._id_factory = Identifiers(cls._context)
+        return cls._context
+
+    def __init__(self, id: str | None = None, uri: str | None = None):
+        MetaResource._get_context()
         self.id = id if id else str(MetaResource._counter.next())
-        uri = MetaResource._id_factory.make_uri_from_id(self.id)
-        super().__init__(uri=uri)
+        resolved_uri = uri if uri else MetaResource._id_factory.make_uri_from_id(self.id)
+        super().__init__(uri=resolved_uri)
         self.is_modified = True
         self.is_from_existing = False
 
@@ -37,16 +45,18 @@ class MetaResource(RDFResource):
 
     @property
     def local_file_path(self) -> str:
-        return os.path.join(MetaResource._context.sip_directory, self.filename)
+        return os.path.join(Config.get_instance().sip_directory, self.filename)
 
     def filestore_key(self) -> str:
         return self._id_factory.make_s3_key_from_id(self.id)
  
-    def save(self) -> bool:
+    def save(self, format=None) -> bool:
+        if format is None :
+            format = 'json-ld'
         if self.is_modified:
             try:
                 with open(self.local_file_path, 'w', encoding='utf-8') as file:
-                    file.write(self.graph.serialize(format='json-ld'))
+                    file.write(self.graph.serialize(format=format))
                 self.is_modified = False
                 return True
             except IOError as e:
@@ -67,20 +77,38 @@ class StructuredMetaResource(MetaResource):
     and properties for easy access to key parts of the graph data.
     """
 
-    _actoren = ConceptResolver("actor")
-    _aggregatieniveaus = ConceptResolver("aggregatieniveau")
-    _algoritmes = ConceptResolver("algoritme")
-    _beperkingen_openbaarheid = ConceptResolver("openbaarheid")
-    _bestandsformaten = ConceptResolver("bestandsformaat")
-    _dekkingintijdtypen = ConceptResolver("dekkingintijdtype")
-    _eventtypen = ConceptResolver("eventtype")
-    _licenties = ConceptResolver("licentie")
-    _waarderingen = ConceptResolver("waardering")
+    _actoren = None
+    _aggregatieniveaus = None
+    _algoritmes = None
+    _beperkingen_openbaarheid = None
+    _bestandsformaten = None
+    _dekkingintijdtypen = None
+    _eventtypen = None
+    _licenties = None
+    _waarderingen = None
 
-    def __init__(self, id: str | None = None, rdf_type=LDTO.Informatieobject):
-        super().__init__(id)
-        self._init_rdf_properties(rdf_type)
+    @classmethod
+    def _get_resolvers(cls):
+        if cls._actoren is None:
+            cls._actoren = ConceptResolver("actor")
+            cls._aggregatieniveaus = ConceptResolver("aggregatieniveau")
+            cls._algoritmes = ConceptResolver("algoritme")
+            cls._beperkingen_openbaarheid = ConceptResolver("openbaarheid")
+            cls._bestandsformaten = ConceptResolver("bestandsformaat")
+            cls._dekkingintijdtypen = ConceptResolver("dekkingintijdtype")
+            cls._eventtypen = ConceptResolver("eventtype")
+            cls._licenties = ConceptResolver("licentie")
+            cls._waarderingen = ConceptResolver("waardering")
+
+    def __init__(self, id: str | None = None, uri: str | None = None):
+        super().__init__(id, uri=uri)
+        StructuredMetaResource._get_resolvers()
         self.based_on_sources = set()
+
+    @property
+    def filename(self) -> str:
+        cfg = Config.get_instance()
+        return f"{self.id}.{cfg.metadata_suffix}.{cfg.metadata_extension}"
 
     def add(self, predicate: URIRef, obj, transformer: Callable = Literal) -> None:
         """Add a triple to the graph and mark as modified."""
@@ -104,10 +132,6 @@ class StructuredMetaResource(MetaResource):
     @property
     def has_referenced_file(self) -> bool:
         return self._get_object_value(LDTO.URLBestand, self.uri) is not None
-
-    @property
-    def metadata_file_uri(self) -> str:
-        return f"{MetaResource._id_factory.cdn_base_uri}{MetaResource._id_factory.make_s3_path_from_id(self.id)}{self.uid}.{MetaResource._context.metadata_suffix}.{MetaResource._context.metadata_extension}"
 
     @property
     def referenced_file_uri(self) -> str | None:
@@ -138,7 +162,7 @@ class StructuredMetaResource(MetaResource):
         self.add_properties({RDF.type: rdf_type})
 
     def set_archive_creator(self) -> None:
-        self.add_properties({LDTO.archiefvormer: MetaResource._context.archive_creator_uri})
+        self.add_properties({LDTO.archiefvormer: Config.get_instance().archive_creator_uri})
 
     def set_name(self, name: str) -> None:
         self.add_properties({LDTO.naam: name})
@@ -188,11 +212,11 @@ class StructuredMetaResource(MetaResource):
             }
         })
 
-    def set_fileproperties_by_puid(self, puid) -> None:
+    def set_fileproperties_by_puid(self, puid, cdn_base_uri: str) -> None:
         ext_file_fileformat_uri = StructuredMetaResource._bestandsformaten.get_concept(puid).get_uri()
         file_extension = StructuredMetaResource._bestandsformaten.get_concept(puid).get_value(SKOS.notation)
-        ext_filename = f"{self.uid}.{file_extension}"
-        url = f"{MetaResource._id_factory.cdn_base_uri}{ext_filename}"
+        ext_filename = f"{self.id}.{file_extension}"
+        url = f"{cdn_base_uri}{ext_filename}"
         self.add_properties({
             LDTO.bestandsformaat: ext_file_fileformat_uri,
             LDTO.URLBestand: Literal(url, datatype=XSD.anyURI),
@@ -232,21 +256,24 @@ class StructuredMetaResource(MetaResource):
         return None
 
     def validate_referenced_file_md5checksum(self) -> bool:
-        return util.calculate_md5(os.path.join(MetaResource._context.sip_directory, self.referenced_file_filename)) == self.referenced_file_md5checksum
+        return util.calculate_md5(os.path.join(Config.get_instance().sip_directory, self.referenced_file_filename)) == self.referenced_file_md5checksum
 
-    def _init_rdf_properties(self, rdf_type) -> None:
-        self.add_properties({
+    def _init_rdf_properties(self, rdf_type, metadata_file_uri: str | None = None) -> None:
+        properties = {
             RDF.type: rdf_type,
             LDTO.identificatie: {
                 RDF.type: LDTO.IdentificatieGegevens,
                 LDTO.identificatieBron: "e-Depot RAZU",
                 LDTO.identificatieKenmerk: self.uri
-            },
-            DCT.hasFormat: URIRef(self.metadata_file_uri)
-        })
+            }
+        }
+        if metadata_file_uri:
+            properties[DCT.hasFormat] = URIRef(metadata_file_uri)
+        self.add_properties(properties)
         if rdf_type == LDTO.Informatieobject:
             self.add_properties({
                 LDTO.waardering: StructuredMetaResource._waarderingen.get_concept('B').get_uri(),
-                LDTO.archiefvormer: StructuredMetaResource._actoren.get_concept(MetaResource._context.archive_creator_id).get_uri()
+                LDTO.archiefvormer: StructuredMetaResource._actoren.get_concept(Config.get_instance().archive_creator_id).get_uri()
             })
-        self.add_triple(URIRef(self.metadata_file_uri), RDF.type, PREMIS.File)
+        if metadata_file_uri:
+            self.add_triple(URIRef(metadata_file_uri), RDF.type, PREMIS.File)

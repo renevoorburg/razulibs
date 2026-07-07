@@ -1,5 +1,7 @@
 # Coding Guidelines
 
+RAZU Coding Guideline v0.2 
+
 ## Naming
 
 - **Variables and functions**: `snake_case` — e.g. `archive_creator_id`
@@ -7,7 +9,7 @@
 - **Constants**: `UPPER_SNAKE_CASE` — e.g. `REPOSITORY_ID`, `RUN_INFO_SUFFIX`
 - **Private methods**: `_` prefix — e.g. `_load`, `_next_uri`
 - **Properties** for derived/computed values, no `get_` prefix — e.g. `uid`, `filename`
-- **Booleans**: `is_`/`has_` prefix — e.g. `is_modified`, `has_referenced_file`
+- **Booleans**: `is_`/`has_`/`use_` prefix — e.g. `is_modified`, `has_referenced_file`, `use_cache`
 
 ## Type hints
 
@@ -16,7 +18,7 @@
 
 ## Patterns
 
-- **Factory classmethods** [create_new()](cci:1://file:///home/rene/coding/razulibs/razu/sip.py:72:4-102:18) / [load_existing()](cci:1://file:///home/rene/coding/razulibs/razu/sip.py:104:4-109:18) instead of complex [__init__](cci:1://file:///home/rene/coding/razulibs/razu/sip.py:62:4-66:49).
+- **Factory classmethods** `create_new()` / `load_existing()` instead of complex `__init__`.
 - **`@dataclass`** for pure data classes.
 - **`@staticmethod`** for helper methods without instance state.
 - **`@property`** for computed attributes, not for side-effects.
@@ -36,6 +38,7 @@ Some preferred libraries:
 | Config | `PyYAML` |
 | Secrets / env | `python-dotenv` |
 | Paths | `pathlib.Path` (preferred), `os.path` (legacy) |
+| Services | `gunicorn` |
 | CSV / tabular data | `pandas` |
 | Hashing | `hashlib` (MD5) |
 | CLI | `argparse` |
