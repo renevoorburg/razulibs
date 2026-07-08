@@ -15,7 +15,7 @@ razu_file_id: "nl-wbdrazu"
 metadata_suffix: "meta"
 manifest_suffix: "manifest"
 eventlog_suffix: "eventlog"
-metadata_extension: "json"
+metadata_extension: "ttl"
 
 storage_base_domain: "opslag.razu.nl"
 

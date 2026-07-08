@@ -41,8 +41,9 @@ class MetaResource(RDFResource):
 
     @property
     def filename(self) -> str:
-        return MetaResource._id_factory.make_filename_from_id(self.id)
-
+        cfg = Config.get_instance()
+        return f"{self.id}.{cfg.metadata_suffix}.{cfg.metadata_extension}"
+    
     @property
     def local_file_path(self) -> str:
         return os.path.join(Config.get_instance().sip_directory, self.filename)
