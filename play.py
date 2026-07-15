@@ -106,7 +106,9 @@ class RDFResource:
 
 depot = Edepot(maintainer="nl-wbdrazu", storage_location="./")
 sip = depot.create_sip(producer="g0422", dataset_id="123")
+
 resource = sip.create_resource(resource_type="Informatieobject", aggregation_level="Archief")
+#resource.add_property stuff here
 resource.save()
 
 
