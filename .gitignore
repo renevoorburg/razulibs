@@ -10,3 +10,4 @@ venv
 razu/demo/csv_luchtfotos/sip
 .vscode/settings.json
 *.db
+000/
